@@ -285,18 +285,11 @@ router.get('/top-contributors', authenticateToken, async (req, res) => {
         console.log('Query executed successfully. Row count:', result.rows.length);
         console.log('Raw results:', result.rows);
 
-        // Transform the results to include full URLs for profile pictures
-        const contributors = result.rows.map(user => {
-            console.log('Processing user:', user);
-            const profileUrl = user.profile_picture
-                ? `${process.env.API_URL || 'http://localhost:3000'}/uploads/profiles/${user.profile_picture}`
-                : null;
-            console.log('Generated profile URL:', profileUrl);
-            return {
-                ...user,
-                profile_picture: profileUrl
-            };
-        });
+        // Transform the results to include the profile_picture field as is
+        const contributors = result.rows.map(user => ({
+            ...user,
+            profile_picture: user.profile_picture // Keep the profile_picture as is, without transforming to a full URL
+        }));
 
         console.log('Final contributors data:', contributors);
         res.json(contributors);
