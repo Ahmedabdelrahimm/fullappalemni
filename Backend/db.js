@@ -8,13 +8,14 @@ const config = {
     database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
     port: process.env.DB_PORT,
-    // Connection pool settings
+    ssl: {
+        rejectUnauthorized: false // Supabase requires SSL
+    },
     max: 20, // maximum number of clients in the pool
-    idleTimeoutMillis: 30000, // how long a client is allowed to remain idle before being closed
-    connectionTimeoutMillis: 2000, // how long to wait for a connection
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
 };
 
-// Create the pool
 const pool = new Pool(config);
 
 // Test the database connection
@@ -22,9 +23,9 @@ const testConnection = async () => {
     const client = await pool.connect();
     try {
         await client.query('SELECT NOW()');
-        console.log('Successfully connected to PostgreSQL database');
+        console.log('✅ Successfully connected to Supabase PostgreSQL database');
     } catch (err) {
-        console.error('Error connecting to the database:', err);
+        console.error('❌ Error connecting to the database:', err);
         process.exit(1);
     } finally {
         client.release();
@@ -33,19 +34,15 @@ const testConnection = async () => {
 
 // Handle pool errors
 pool.on('error', (err) => {
-    console.error('Unexpected error on idle client', err);
-    // Don't exit the process, just log the error
+    console.error('❗ Unexpected error on idle client', err);
 });
 
-// Handle connection timeouts
 pool.on('connect', (client) => {
     client.on('error', (err) => {
-        console.error('Client error:', err);
+        console.error('⚠️ Client error:', err);
     });
 });
 
-// Test the connection on startup
 testConnection();
 
-// Export the pool
-module.exports = pool; 
+module.exports = pool;

@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const os = require('os');
 const userRoutes = require('./routes/users.routes.js');
 const institutionRoutes = require('./routes/institutions.routes.js');
 const programRoutes = require('./routes/programs.routes.js');
@@ -58,8 +59,38 @@ app.use('/api/blog', blogRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
 
+// Function to get the local IP address
+function getLocalIpAddress() {
+    const interfaces = os.networkInterfaces();
+    let ipAddress = 'localhost';
+    
+    // Loop through network interfaces
+    Object.keys(interfaces).forEach((interfaceName) => {
+        const addresses = interfaces[interfaceName];
+        
+        if (!addresses) return;
+        
+        // Find IPv4 addresses that are not internal (127.0.0.1) or link-local (169.254.x.x)
+        addresses.forEach((address) => {
+            if (
+                address.family === 'IPv4' && 
+                !address.internal && 
+                !address.address.startsWith('169.254.')
+            ) {
+                ipAddress = address.address;
+            }
+        });
+    });
+    
+    return ipAddress;
+}
+
 const PORT = process.env.PORT || 3000;
+const localIp = getLocalIpAddress();
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
-    console.log(`Accessible at http://localhost:${PORT} or http://192.168.1.9:${PORT}`);
+    console.log(`Accessible at:`);
+    console.log(`- http://localhost:${PORT} (Local)`);
+    console.log(`- http://${localIp}:${PORT} (Network)`);
 });
