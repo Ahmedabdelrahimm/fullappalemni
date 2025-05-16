@@ -6,9 +6,10 @@ const pool = require('../db');
 router.get('/', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT b.*, i.name, i.location, i.type, i.rating, i.profile_picture
+            SELECT b.*, i.name, i.location, i.type, i.rating, img.image_url as profile_picture
             FROM bookmarks b
             JOIN institutions i ON b.institution_id = i.institution_id
+            LEFT JOIN institution_images img ON i.institution_id = img.institution_id AND img.is_primary = true
             WHERE b.user_id = $1
             ORDER BY b.date_added DESC
         `, [req.query.user_id]);
