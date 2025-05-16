@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
 
 // Get user's bookmarks
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT b.*, i.name, i.location, i.type, i.rating, i.profile_picture
@@ -12,7 +11,7 @@ router.get('/', authenticateToken, async (req, res) => {
             JOIN institutions i ON b.institution_id = i.institution_id
             WHERE b.user_id = $1
             ORDER BY b.date_added DESC
-        `, [req.user.user_id]);
+        `, [req.query.user_id]);
 
         res.json({
             success: true,
@@ -29,9 +28,9 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Add bookmark
-router.post('/:institutionId', authenticateToken, async (req, res) => {
+router.post('/:institutionId', async (req, res) => {
     const { institutionId } = req.params;
-    const userId = req.user.user_id;
+    const userId = req.body.user_id;
 
     try {
         // Check if bookmark already exists
@@ -69,9 +68,9 @@ router.post('/:institutionId', authenticateToken, async (req, res) => {
 });
 
 // Remove bookmark
-router.delete('/:institutionId', authenticateToken, async (req, res) => {
+router.delete('/:institutionId', async (req, res) => {
     const { institutionId } = req.params;
-    const userId = req.user.user_id;
+    const userId = req.query.user_id;
 
     try {
         const result = await pool.query(
