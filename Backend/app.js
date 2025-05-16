@@ -42,7 +42,7 @@ app.use('/api/program', programRoutes);
 app.use('/api/course', courseRoutes);
 app.use('/api/scholarship', scholarshipRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
-app.use('/api/review', reviewRoutes);
+app.use('/api/reviews', reviewRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/bus', busRoutes);
 app.use('/api/advisor', advisorRoutes);

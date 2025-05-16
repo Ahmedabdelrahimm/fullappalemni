@@ -106,7 +106,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/institution/:id', async (req, res) => {
     try {
         console.log(`Fetching reviews for institution ID: ${req.params.id}`);
-        
+
         // Use lowercase table names to match the schema
         const result = await pool.query(`
             SELECT r.*, u.first_name, u.last_name, u.profile_picture 
@@ -115,14 +115,41 @@ router.get('/institution/:id', async (req, res) => {
             WHERE r.institution_id = $1
             ORDER BY r.review_date DESC
         `, [req.params.id]);
-        
+
         console.log(`Found ${result.rows.length} reviews`);
-        
+
         // Log the first review for debugging
         if (result.rows.length > 0) {
             console.log('First review:', result.rows[0]);
         }
-        
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching reviews:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/:institutionId/reviews', async (req, res) => {
+    try {
+        console.log(`Fetching reviews for institution ID (alternative route): ${req.params.institutionId}`);
+
+        // Use lowercase table names to match the schema
+        const result = await pool.query(`
+            SELECT r.*, u.first_name, u.last_name, u.profile_picture 
+            FROM reviews r
+            JOIN users u ON r.user_id = u.user_id
+            WHERE r.institution_id = $1
+            ORDER BY r.review_date DESC
+        `, [req.params.institutionId]);
+
+        console.log(`Found ${result.rows.length} reviews`);
+
+        // Log the first review for debugging
+        if (result.rows.length > 0) {
+            console.log('First review:', result.rows[0]);
+        }
+
         res.json(result.rows);
     } catch (err) {
         console.error('Error fetching reviews:', err);
@@ -143,22 +170,22 @@ router.get('/user/:id', async (req, res) => {
 router.get('/test/:id', async (req, res) => {
     try {
         console.log(`Testing reviews for institution ID: ${req.params.id}`);
-        
+
         // First check if the institution exists
         const institutionCheck = await pool.query('SELECT * FROM institutions WHERE institution_id = $1', [req.params.id]);
-        
+
         if (institutionCheck.rows.length === 0) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 error: 'Institution not found',
                 message: `No institution found with ID ${req.params.id}`
             });
         }
-        
+
         // Check if there are any reviews for this institution
         const reviewCount = await pool.query('SELECT COUNT(*) FROM reviews WHERE institution_id = $1', [req.params.id]);
-        
+
         console.log(`Found ${reviewCount.rows[0].count} reviews for institution ${req.params.id}`);
-        
+
         // Get the reviews with user information
         const result = await pool.query(`
             SELECT r.*, u.first_name, u.last_name, u.profile_picture 
@@ -167,7 +194,7 @@ router.get('/test/:id', async (req, res) => {
             WHERE r.institution_id = $1
             ORDER BY r.review_date DESC
         `, [req.params.id]);
-        
+
         res.json({
             institution_id: req.params.id,
             review_count: parseInt(reviewCount.rows[0].count),
@@ -175,7 +202,7 @@ router.get('/test/:id', async (req, res) => {
         });
     } catch (err) {
         console.error('Error in test reviews endpoint:', err);
-        res.status(500).json({ 
+        res.status(500).json({
             error: err.message,
             stack: err.stack
         });
