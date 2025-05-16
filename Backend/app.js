@@ -18,6 +18,7 @@ const feeRoutes = require('./routes/fees.routes.js');
 const interviewRoutes = require('./routes/interviews.routes.js');
 const testRoutes = require('./routes/test.routes.js');
 const categoryRoutes = require('./routes/categories.routes.js');
+const bookmarkRoutes = require('./routes/bookmarks.routes.js');
 
 // New routes
 const communityRoutes = require('./routes/community.routes.js');
@@ -49,6 +50,7 @@ app.use('/api/faq', faqRoutes);
 app.use('/api/document', documentRoutes);
 app.use('/api/fees', feeRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/bookmarks', bookmarkRoutes);
 
 // Test route
 app.use('/api/test', testRoutes);
@@ -63,25 +65,25 @@ app.use('/api/settings', settingsRoutes);
 function getLocalIpAddress() {
     const interfaces = os.networkInterfaces();
     let ipAddress = 'localhost';
-    
+
     // Loop through network interfaces
     Object.keys(interfaces).forEach((interfaceName) => {
         const addresses = interfaces[interfaceName];
-        
+
         if (!addresses) return;
-        
+
         // Find IPv4 addresses that are not internal (127.0.0.1) or link-local (169.254.x.x)
         addresses.forEach((address) => {
             if (
-                address.family === 'IPv4' && 
-                !address.internal && 
+                address.family === 'IPv4' &&
+                !address.internal &&
                 !address.address.startsWith('169.254.')
             ) {
                 ipAddress = address.address;
             }
         });
     });
-    
+
     return ipAddress;
 }
 
