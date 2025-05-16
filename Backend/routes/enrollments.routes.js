@@ -6,27 +6,42 @@ const router = express.Router();
 const pool = require('../db');
 
 router.post('/', async (req, res) => {
-    const { user_id, program_id, status, required_documents } = req.body;
+    const { user_id, program_id, status, required_documents, documents } = req.body;
 
     try {
-
         const userCheck = await pool.query('SELECT * FROM Users WHERE User_ID = $1', [user_id]);
         if (userCheck.rows.length === 0) {
             return res.status(400).json({ error: 'User not found' });
         }
-
-
         const programCheck = await pool.query('SELECT * FROM Educational_Programs WHERE Program_ID = $1', [program_id]);
         if (programCheck.rows.length === 0) {
             return res.status(400).json({ error: 'Program not found' });
         }
-
         const result = await pool.query(
             `INSERT INTO Enrollment_Applications (User_ID, Program_ID, Status, Required_Documents) 
              VALUES ($1, $2, $3, $4) RETURNING *`,
             [user_id, program_id, status || 'pending', required_documents]
         );
-        res.status(201).json({ "Status": "OK", "Message": "Record Added Successfully" });
+        const application = result.rows[0];
+        // Insert documents if provided
+        if (documents && Array.isArray(documents)) {
+            for (const doc of documents) {
+                await pool.query(
+                    `INSERT INTO Documents (Document_Type, User_ID, Application_ID, File_URL, File_Name, File_Size, Status) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)` ,
+                    [
+                        doc.document_type || 'Other',
+                        user_id,
+                        application.application_id,
+                        doc.file_url,
+                        doc.file_name,
+                        doc.file_size,
+                        doc.status || 'pending'
+                    ]
+                );
+            }
+        }
+        res.status(201).json({ Status: 'OK', Message: 'Record Added Successfully', application_id: application.application_id });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
