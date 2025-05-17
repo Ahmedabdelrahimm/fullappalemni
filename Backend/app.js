@@ -83,8 +83,9 @@ wss.on('connection', async (ws, req) => {
     // Handle messages
     ws.on('message', async (message) => {
         try {
+            console.log('Raw message received:', message.toString());
             const data = JSON.parse(message);
-            console.log('Received WebSocket message:', data);
+            console.log('Parsed message:', data);
 
             switch (data.type) {
                 case 'join':
@@ -103,21 +104,29 @@ wss.on('connection', async (ws, req) => {
 
                 case 'message':
                     // Broadcast message to all users in the room
+                    console.log('Processing message:', data);
                     const messageData = {
                         type: 'new_message',
                         data: {
                             ...data.data,
                             timestamp: new Date().toISOString(),
-                            user_id: userId
+                            user_id: userId,
+                            username: 'Ahmed' // We should get this from the user data
                         }
                     };
                     console.log('Broadcasting message:', messageData);
                     broadcastToRoom(roomId, messageData);
+                    // Send acknowledgment back to sender
+                    ws.send(JSON.stringify({
+                        type: 'message_sent',
+                        data: messageData.data
+                    }));
                     break;
 
                 case 'typing_start':
                 case 'typing_end':
                     // Broadcast typing status to room
+                    console.log('Processing typing status:', data);
                     broadcastToRoom(roomId, {
                         ...data,
                         data: {
@@ -160,15 +169,28 @@ wss.on('connection', async (ws, req) => {
 
 // Helper function to broadcast to room
 function broadcastToRoom(roomId, message) {
+    console.log(`Broadcasting to room ${roomId}:`, message);
+    console.log('Active clients:', Array.from(clients.entries()).map(([id, client]) => ({
+        userId: id,
+        roomId: client.roomId,
+        readyState: client.ws.readyState
+    })));
+
     let sentCount = 0;
     clients.forEach((client, userId) => {
         if (client.roomId === roomId && client.ws.readyState === WebSocket.OPEN) {
             try {
+                console.log(`Sending message to user ${userId}`);
                 client.ws.send(JSON.stringify(message));
                 sentCount++;
             } catch (error) {
                 console.error(`Error sending message to user ${userId}:`, error);
             }
+        } else {
+            console.log(`Skipping user ${userId}:`, {
+                roomMatch: client.roomId === roomId,
+                readyState: client.ws.readyState
+            });
         }
     });
     console.log(`Broadcasted message to ${sentCount} clients in room ${roomId}`);
