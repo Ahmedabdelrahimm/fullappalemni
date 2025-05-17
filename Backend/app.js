@@ -37,7 +37,6 @@ const server = http.createServer(app);
 // WebSocket server setup
 const wss = new WebSocket.Server({
     server,
-    path: '/ws/community/chat/:id',
     verifyClient: (info, callback) => {
         try {
             // Extract token from URL
@@ -216,6 +215,27 @@ app.use('/api/community', communityRoutes);
 app.use('/api/blog', blogRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
+
+// Add a route to handle WebSocket upgrade requests
+app.get('/ws/community/chat/:id', (req, res) => {
+    const token = req.query.token;
+    const roomId = req.params.id;
+
+    if (!token) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!roomId) {
+        return res.status(400).json({ error: 'Room ID required' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        res.status(200).json({ message: 'WebSocket connection allowed' });
+    } catch (error) {
+        res.status(401).json({ error: 'Authentication failed' });
+    }
+});
 
 // Function to get the local IP address
 function getLocalIpAddress() {
