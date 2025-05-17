@@ -312,4 +312,55 @@ router.get('/top-contributors', authenticateToken, async (req, res) => {
     }
 });
 
+// Get user language settings
+router.get('/settings/language', authenticateToken, async (req, res) => {
+    const userId = req.user.user_id;
+    try {
+        const result = await pool.query(
+            'SELECT language FROM user_settings WHERE user_id = $1',
+            [userId]
+        );
+        res.json({ language: result.rows[0]?.language || 'English' });
+    } catch (err) {
+        res.status(500).json({ error: 'Internal server error', message: err.message });
+    }
+});
+
+// Update user language settings
+router.put('/settings/language', authenticateToken, async (req, res) => {
+    const userId = req.user.user_id;
+    const { language } = req.body;
+
+    if (!language) {
+        return res.status(400).json({ error: 'Language is required' });
+    }
+
+    try {
+        // First try to update
+        const updateResult = await pool.query(
+            `UPDATE user_settings 
+             SET language = $1 
+             WHERE user_id = $2 
+             RETURNING *`,
+            [language, userId]
+        );
+
+        // If no row was updated, insert new settings
+        if (updateResult.rows.length === 0) {
+            const insertResult = await pool.query(
+                `INSERT INTO user_settings (user_id, language) 
+                 VALUES ($1, $2) 
+                 RETURNING *`,
+                [userId, language]
+            );
+            return res.json(insertResult.rows[0]);
+        }
+
+        res.json(updateResult.rows[0]);
+    } catch (err) {
+        console.error('Error updating language:', err);
+        res.status(500).json({ error: 'Internal server error', message: err.message });
+    }
+});
+
 module.exports = router;
