@@ -530,10 +530,10 @@ router.get('/:institution_id/reviews', async (req, res) => {
     try {
         const reviews = await db.query(
             `SELECT r.*, u.first_name, u.last_name, u.profile_picture
-             FROM institution_reviews r
+             FROM reviews r
              LEFT JOIN users u ON r.user_id = u.user_id
              WHERE r.institution_id = $1
-             ORDER BY r.created_at DESC`,
+             ORDER BY r.review_date DESC`,
             [institution_id]
         );
         res.json(reviews.rows);
