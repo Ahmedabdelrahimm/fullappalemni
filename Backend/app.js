@@ -2,6 +2,9 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const os = require('os');
+const http = require('http');
+const WebSocket = require('ws');
+const jwt = require('jsonwebtoken');
 const userRoutes = require('./routes/users.routes.js');
 const institutionRoutes = require('./routes/institutions.routes.js');
 const programRoutes = require('./routes/programs.routes.js');
@@ -29,6 +32,92 @@ const settingsRoutes = require('./routes/settings.routes.js');
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+
+// WebSocket server setup
+const wss = new WebSocket.Server({ server });
+
+// Store active connections
+const clients = new Map();
+
+// WebSocket connection handler
+wss.on('connection', async (ws, req) => {
+    try {
+        // Extract token from URL
+        const url = new URL(req.url, 'ws://localhost');
+        const token = url.searchParams.get('token');
+
+        if (!token) {
+            ws.close(1008, 'Authentication required');
+            return;
+        }
+
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.user_id;
+
+        // Store the connection
+        clients.set(userId, ws);
+
+        // Handle messages
+        ws.on('message', async (message) => {
+            try {
+                const data = JSON.parse(message);
+                console.log('Received WebSocket message:', data);
+
+                switch (data.type) {
+                    case 'join':
+                        // Handle room join
+                        const { room_id } = data.data;
+                        ws.roomId = room_id;
+                        break;
+
+                    case 'message':
+                        // Broadcast message to all users in the room
+                        const { room_id: msgRoomId, content } = data.data;
+                        broadcastToRoom(msgRoomId, {
+                            type: 'new_message',
+                            data: {
+                                ...data.data,
+                                timestamp: new Date().toISOString()
+                            }
+                        });
+                        break;
+
+                    case 'typing_start':
+                    case 'typing_end':
+                        // Broadcast typing status to room
+                        broadcastToRoom(ws.roomId, data);
+                        break;
+                }
+            } catch (error) {
+                console.error('Error handling WebSocket message:', error);
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    data: { message: 'Invalid message format' }
+                }));
+            }
+        });
+
+        // Handle disconnection
+        ws.on('close', () => {
+            clients.delete(userId);
+        });
+
+    } catch (error) {
+        console.error('WebSocket authentication error:', error);
+        ws.close(1008, 'Authentication failed');
+    }
+});
+
+// Helper function to broadcast to room
+function broadcastToRoom(roomId, message) {
+    clients.forEach((client, userId) => {
+        if (client.roomId === roomId && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(message));
+        }
+    });
+}
 
 // Enable CORS for all routes
 app.use(cors());
@@ -90,7 +179,7 @@ function getLocalIpAddress() {
 const PORT = process.env.PORT || 3000;
 const localIp = getLocalIpAddress();
 
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
     console.log(`Accessible at:`);
     console.log(`- http://localhost:${PORT} (Local)`);
