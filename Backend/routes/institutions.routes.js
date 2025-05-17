@@ -176,13 +176,13 @@ router.get('/:id/images', async (req, res) => {
             WHERE institution_id = $1
             ORDER BY is_primary DESC;
         `;
-        
+
         console.log(`Backend: Executing query: ${query.replace(/\s+/g, ' ')}`);
         console.log(`Backend: Query parameters: [${institutionId}]`);
-        
+
         const result = await client.query(query, [institutionId]);
         console.log(`Backend: Query returned ${result.rows.length} rows`);
-        
+
         if (result.rows.length === 0) {
             console.log(`Backend: No images found for institution ID: ${institutionId}`);
             // Return an empty array instead of 404 status
@@ -198,17 +198,17 @@ router.get('/:id/images', async (req, res) => {
             image_count: result.rows.length,
             images: result.rows
         };
-        
+
         console.log(`Backend: Sending response with ${result.rows.length} images`);
         res.json(response);
-        
+
     } catch (err) {
         console.error('Backend: Error fetching institution images:', err);
         // Add more detailed error logging
         console.error('Error details:', err.message);
         if (err.stack) console.error('Stack trace:', err.stack);
-        
-        res.status(500).json({ 
+
+        res.status(500).json({
             error: 'Internal server error',
             message: err.message
         });
@@ -408,6 +408,92 @@ router.get('/search/:keyword', async (req, res) => {
     } catch (error) {
         console.error('Error searching institutions:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// --- Student Activities Endpoints ---
+
+// List all activities for an institution
+router.get('/:institution_id/activities', async (req, res) => {
+    const { institution_id } = req.params;
+    try {
+        const activities = await db.query(
+            'SELECT * FROM student_activities WHERE institution_id = $1',
+            [institution_id]
+        );
+        res.json(activities.rows);
+    } catch (err) {
+        handleDatabaseError(err, res);
+    }
+});
+
+// Get details for a single activity (with avg rating/count)
+router.get('/activities/:activity_id', async (req, res) => {
+    const { activity_id } = req.params;
+    try {
+        const activity = await db.query(
+            'SELECT * FROM student_activities WHERE activity_id = $1',
+            [activity_id]
+        );
+        if (!activity.rows[0]) return res.status(404).json({ error: 'Not found' });
+        const ratingRes = await db.query(
+            'SELECT AVG(rating) as avg_rating, COUNT(*) as ratings_count FROM student_activity_ratings WHERE activity_id = $1',
+            [activity_id]
+        );
+        res.json({
+            ...activity.rows[0],
+            avg_rating: Number(ratingRes.rows[0].avg_rating) || 0,
+            ratings_count: Number(ratingRes.rows[0].ratings_count) || 0
+        });
+    } catch (err) {
+        handleDatabaseError(err, res);
+    }
+});
+
+// List events for an activity
+router.get('/activities/:activity_id/events', async (req, res) => {
+    const { activity_id } = req.params;
+    try {
+        const events = await db.query(
+            'SELECT * FROM student_activity_events WHERE activity_id = $1 ORDER BY date DESC',
+            [activity_id]
+        );
+        res.json(events.rows);
+    } catch (err) {
+        handleDatabaseError(err, res);
+    }
+});
+
+// List ratings for an activity
+router.get('/activities/:activity_id/ratings', async (req, res) => {
+    const { activity_id } = req.params;
+    try {
+        const ratings = await db.query(
+            `SELECT r.*, u.first_name, u.last_name, u.profile_picture
+             FROM student_activity_ratings r
+             LEFT JOIN users u ON r.user_id = u.user_id
+             WHERE r.activity_id = $1
+             ORDER BY r.created_at DESC`,
+            [activity_id]
+        );
+        res.json(ratings.rows);
+    } catch (err) {
+        handleDatabaseError(err, res);
+    }
+});
+
+// Add a rating for an activity
+router.post('/activities/:activity_id/ratings', async (req, res) => {
+    const { activity_id } = req.params;
+    const { user_id, rating, comment } = req.body;
+    try {
+        await db.query(
+            'INSERT INTO student_activity_ratings (activity_id, user_id, rating, comment) VALUES ($1, $2, $3, $4)',
+            [activity_id, user_id, rating, comment]
+        );
+        res.status(201).json({ success: true });
+    } catch (err) {
+        handleDatabaseError(err, res);
     }
 });
 
