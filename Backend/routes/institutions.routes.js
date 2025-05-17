@@ -497,6 +497,51 @@ router.post('/activities/:activity_id/ratings', async (req, res) => {
     }
 });
 
+// Add missing routes for programs and fees
+router.get('/:institution_id/programs', async (req, res) => {
+    const { institution_id } = req.params;
+    try {
+        const programs = await db.query(
+            'SELECT * FROM educational_programs WHERE institution_id = $1',
+            [institution_id]
+        );
+        res.json(programs.rows);
+    } catch (err) {
+        handleDatabaseError(err, res);
+    }
+});
+
+router.get('/:institution_id/fees', async (req, res) => {
+    const { institution_id } = req.params;
+    try {
+        const fees = await db.query(
+            'SELECT * FROM institution_fees WHERE institution_id = $1',
+            [institution_id]
+        );
+        res.json(fees.rows);
+    } catch (err) {
+        handleDatabaseError(err, res);
+    }
+});
+
+// Add route for institution reviews
+router.get('/:institution_id/reviews', async (req, res) => {
+    const { institution_id } = req.params;
+    try {
+        const reviews = await db.query(
+            `SELECT r.*, u.first_name, u.last_name, u.profile_picture
+             FROM institution_reviews r
+             LEFT JOIN users u ON r.user_id = u.user_id
+             WHERE r.institution_id = $1
+             ORDER BY r.created_at DESC`,
+            [institution_id]
+        );
+        res.json(reviews.rows);
+    } catch (err) {
+        handleDatabaseError(err, res);
+    }
+});
+
 module.exports = router;
 
 
