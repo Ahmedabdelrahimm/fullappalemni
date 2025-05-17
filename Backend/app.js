@@ -40,17 +40,27 @@ const wss = new WebSocket.Server({
     path: '/ws/community/chat/:id',
     verifyClient: (info, callback) => {
         try {
+            // Extract token from URL
             const url = new URL(info.req.url, 'ws://localhost');
             const token = url.searchParams.get('token');
+            const roomId = url.pathname.split('/').pop();
 
             if (!token) {
+                console.error('No token provided');
                 callback(false, 401, 'Authentication required');
+                return;
+            }
+
+            if (!roomId) {
+                console.error('No room ID provided');
+                callback(false, 400, 'Room ID required');
                 return;
             }
 
             // Verify token
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             info.req.userId = decoded.user_id;
+            info.req.roomId = roomId;
             callback(true);
         } catch (error) {
             console.error('WebSocket authentication error:', error);
@@ -65,10 +75,11 @@ const clients = new Map();
 // WebSocket connection handler
 wss.on('connection', async (ws, req) => {
     const userId = req.userId;
-    console.log(`WebSocket client connected: ${userId}`);
+    const roomId = req.roomId;
+    console.log(`WebSocket client connected: ${userId} to room ${roomId}`);
 
-    // Store the connection
-    clients.set(userId, ws);
+    // Store the connection with room information
+    clients.set(userId, { ws, roomId });
 
     // Handle messages
     ws.on('message', async (message) => {
@@ -79,23 +90,20 @@ wss.on('connection', async (ws, req) => {
             switch (data.type) {
                 case 'join':
                     // Handle room join
-                    const { room_id } = data.data;
-                    ws.roomId = room_id;
-                    console.log(`User ${userId} joined room ${room_id}`);
+                    console.log(`User ${userId} joined room ${roomId}`);
 
                     // Notify others in the room
-                    broadcastToRoom(room_id, {
+                    broadcastToRoom(roomId, {
                         type: 'member_joined',
                         data: {
                             user_id: userId,
-                            room_id: room_id
+                            room_id: roomId
                         }
                     });
                     break;
 
                 case 'message':
                     // Broadcast message to all users in the room
-                    const { room_id: msgRoomId, content } = data.data;
                     const messageData = {
                         type: 'new_message',
                         data: {
@@ -105,13 +113,13 @@ wss.on('connection', async (ws, req) => {
                         }
                     };
                     console.log('Broadcasting message:', messageData);
-                    broadcastToRoom(msgRoomId, messageData);
+                    broadcastToRoom(roomId, messageData);
                     break;
 
                 case 'typing_start':
                 case 'typing_end':
                     // Broadcast typing status to room
-                    broadcastToRoom(ws.roomId, {
+                    broadcastToRoom(roomId, {
                         ...data,
                         data: {
                             ...data.data,
@@ -134,16 +142,14 @@ wss.on('connection', async (ws, req) => {
 
     // Handle disconnection
     ws.on('close', () => {
-        console.log(`WebSocket client disconnected: ${userId}`);
-        if (ws.roomId) {
-            broadcastToRoom(ws.roomId, {
-                type: 'member_left',
-                data: {
-                    user_id: userId,
-                    room_id: ws.roomId
-                }
-            });
-        }
+        console.log(`WebSocket client disconnected: ${userId} from room ${roomId}`);
+        broadcastToRoom(roomId, {
+            type: 'member_left',
+            data: {
+                user_id: userId,
+                room_id: roomId
+            }
+        });
         clients.delete(userId);
     });
 
@@ -157,9 +163,9 @@ wss.on('connection', async (ws, req) => {
 function broadcastToRoom(roomId, message) {
     let sentCount = 0;
     clients.forEach((client, userId) => {
-        if (client.roomId === roomId && client.readyState === WebSocket.OPEN) {
+        if (client.roomId === roomId && client.ws.readyState === WebSocket.OPEN) {
             try {
-                client.send(JSON.stringify(message));
+                client.ws.send(JSON.stringify(message));
                 sentCount++;
             } catch (error) {
                 console.error(`Error sending message to user ${userId}:`, error);
@@ -172,6 +178,17 @@ function broadcastToRoom(roomId, message) {
 // Enable CORS for all routes
 app.use(cors());
 app.use(express.json());
+
+// Enable CORS for WebSocket
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
 
 // Existing routes
 app.use('/api/user', userRoutes);
